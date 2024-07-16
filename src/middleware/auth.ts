@@ -7,7 +7,13 @@ import { JWT_SECRET } from "../secrets";
 declare global {
   namespace Express {
     interface Request {
-      user?: any;
+      user?: {
+        id: string;
+        email: string;
+        firstName: string;
+        lastName: string;
+        // Add other user fields as needed
+      };
     }
   }
 }
@@ -19,10 +25,12 @@ const authMiddleware = async (
 ) => {
   console.log("Request Headers:", req.headers);
 
-  const authHeader = req.headers["authorization"];
+  const authHeader = req.headers.authorization;
 
-  if (!authHeader) {
-    console.log("Authorization header missing");
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    console.log(
+      "Authorization header missing or does not start with 'Bearer '"
+    );
     return res.status(401).json({ message: "No token provided" });
   }
 
@@ -36,7 +44,9 @@ const authMiddleware = async (
   try {
     const payload = jwt.verify(token, JWT_SECRET) as { userId: string };
 
-    const user = await prisma.user.findFirst({ where: { id: payload.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: payload.userId },
+    });
 
     if (!user) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -49,4 +59,5 @@ const authMiddleware = async (
     return res.status(403).json({ message: "Forbidden" });
   }
 };
+
 export default authMiddleware;

@@ -37,22 +37,30 @@ const jwt = __importStar(require("jsonwebtoken"));
 const secrets_1 = require("../secrets");
 const authMiddleware = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     console.log("Request Headers:", req.headers);
-    const token = req.headers["authorization"];
-    if (!token || typeof token !== "string") {
-        console.log("Authorization header missing or not a string");
-        return res.status(409).json({ message: "no token provided" });
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        console.log("Authorization header missing or does not start with 'Bearer '");
+        return res.status(401).json({ message: "No token provided" });
+    }
+    const token = authHeader.split(" ")[1];
+    if (!token) {
+        console.log("Token missing after splitting the authorization header");
+        return res.status(401).json({ message: "No token provided" });
     }
     try {
         const payload = jwt.verify(token, secrets_1.JWT_SECRET);
-        const user = yield prisma_1.prisma.user.findFirst({ where: { id: payload.userId } });
+        const user = yield prisma_1.prisma.user.findUnique({
+            where: { id: payload.userId },
+        });
         if (!user) {
-            return res.status(409).json({ message: "Unauthorized" });
+            return res.status(401).json({ message: "Unauthorized" });
         }
         req.user = user; // Attach the user to the request object
         next();
     }
     catch (error) {
-        return res.status(409).json({ message: "Forbidden" });
+        console.error("Error during token verification or user retrieval:", error);
+        return res.status(403).json({ message: "Forbidden" });
     }
 });
 exports.default = authMiddleware;

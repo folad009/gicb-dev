@@ -31,43 +31,60 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __rest = (this && this.__rest) || function (s, e) {
+    var t = {};
+    for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p) && e.indexOf(p) < 0)
+        t[p] = s[p];
+    if (s != null && typeof Object.getOwnPropertySymbols === "function")
+        for (var i = 0, p = Object.getOwnPropertySymbols(s); i < p.length; i++) {
+            if (e.indexOf(p[i]) < 0 && Object.prototype.propertyIsEnumerable.call(s, p[i]))
+                t[p[i]] = s[p[i]];
+        }
+    return t;
+};
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.searchUserById = exports.searchUsers = exports.deleteUser = exports.logoutUser = exports.me = exports.login = exports.signup = void 0;
+exports.updateProfile = exports.getUsers = exports.searchUserById = exports.searchUsers = exports.deleteUser = exports.logoutUser = exports.me = exports.login = exports.signup = void 0;
 const secrets_1 = require("../secrets");
 const bcrypt_1 = require("bcrypt");
-const bcrypt_2 = require("bcrypt");
 const jwt = __importStar(require("jsonwebtoken"));
 const prisma_1 = require("../configuration/prisma");
 const ser_1 = require("../schema/ser");
+// Create a new user account
 const signup = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
-    ser_1.SignupSchema.parse(req.body);
     try {
-        const { first_name, last_name, email, password, business_name, business_category, business_type, business_description, business_address, profile_picture, website_url, social_media_handle, contact_number, cac_certificate, } = req.body;
+        // Validate the request body
+        ser_1.SignupSchema.parse(req.body);
+        const _a = req.body, { firstName, lastName, email, password, businessCategory, businessType } = _a, businessDetails = __rest(_a, ["firstName", "lastName", "email", "password", "businessCategory", "businessType"]);
         // Check if user already exists
-        let user = yield prisma_1.prisma.user.findFirst({ where: { email } });
-        if (user) {
+        const existingUser = yield prisma_1.prisma.user.findFirst({ where: { email } });
+        if (existingUser) {
             return res
                 .status(409)
                 .json({ message: "A user with this email already exists" });
         }
+        // Validate businessCategory
+        const validBusinessCategories = ["Product", "Service"];
+        const category = validBusinessCategories.includes(businessCategory)
+            ? businessCategory
+            : null;
+        // Validate businessType
+        const validBusinessTypes = [
+            "Manufacturing",
+            "Wholesale",
+            "Hospitality",
+            "Technology",
+            "Finance",
+            "Healthcare",
+            "Agriculture",
+        ];
+        const type = validBusinessTypes.includes(businessType)
+            ? businessType
+            : null;
         // Create the new user
-        user = yield prisma_1.prisma.user.create({
-            data: {
-                first_name,
-                last_name,
-                email,
-                password: (0, bcrypt_1.hashSync)(password, 10),
-                business_name,
-                business_category,
-                business_type,
-                business_description,
-                business_address,
-                profile_picture,
-                website_url,
-                social_media_handle,
-                contact_number,
-                cac_certificate,
-            },
+        const user = yield prisma_1.prisma.user.create({
+            data: Object.assign({ firstName,
+                lastName,
+                email, password: (0, bcrypt_1.hashSync)(password, 10), businessCategory: category, businessType: type }, businessDetails),
         });
         res.json(user);
     }
@@ -76,19 +93,18 @@ const signup = (req, res, next) => __awaiter(void 0, void 0, void 0, function* (
     }
 });
 exports.signup = signup;
+// Login existing user
 const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { email, password } = req.body;
-        let user = yield prisma_1.prisma.user.findFirst({ where: { email } });
+        const user = yield prisma_1.prisma.user.findFirst({ where: { email } });
         if (!user) {
             return res.status(409).json({ message: "User does not exist" });
         }
-        if (!(0, bcrypt_2.compareSync)(password, user.password)) {
-            return res.status(409).json({ message: `Incorrect password` });
+        if (!(0, bcrypt_1.compareSync)(password, user.password)) {
+            return res.status(409).json({ message: "Incorrect password" });
         }
-        const token = jwt.sign({
-            userId: user.id,
-        }, secrets_1.JWT_SECRET);
+        const token = jwt.sign({ userId: user.id }, secrets_1.JWT_SECRET);
         res.json({ user, token });
     }
     catch (err) {
@@ -96,26 +112,27 @@ const login = (req, res, next) => __awaiter(void 0, void 0, void 0, function* ()
     }
 });
 exports.login = login;
-const me = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+// Authenticate user that login
+const me = (req, res) => {
     res.json(req.user);
-});
+};
 exports.me = me;
-const logoutUser = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+// Logout user
+const logoutUser = (req, res, next) => {
     try {
         res.status(200).json({ message: "User logged out successfully" });
     }
     catch (err) {
         next(err);
     }
-});
+};
 exports.logoutUser = logoutUser;
+// Delete user account
 const deleteUser = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { userId } = req.params;
         // Check if user exists
-        const user = yield prisma_1.prisma.user.findUnique({
-            where: { id: userId },
-        });
+        const user = yield prisma_1.prisma.user.findUnique({ where: { id: userId } });
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
@@ -128,26 +145,21 @@ const deleteUser = (req, res, next) => __awaiter(void 0, void 0, void 0, functio
     }
 });
 exports.deleteUser = deleteUser;
+// Filter and search business
 const searchUsers = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
-        const { business_category, business_type, business_address } = req.query;
-        // Build the search criteria object dynamically
+        const { businessCategory, businessType, businessAddress } = req.query;
         const searchCriteria = {};
-        if (business_category) {
-            searchCriteria.business_category = business_category;
-        }
-        if (business_type) {
-            searchCriteria.business_type = business_type;
-        }
-        if (business_address) {
+        if (businessCategory)
+            searchCriteria.businessCategory = businessCategory;
+        if (businessType)
+            searchCriteria.business_type = businessType;
+        if (businessAddress)
             searchCriteria.business_address = {
-                contains: business_address,
+                contains: businessAddress,
             };
-        }
         // Fetch users based on the search criteria
-        const users = yield prisma_1.prisma.user.findMany({
-            where: searchCriteria,
-        });
+        const users = yield prisma_1.prisma.user.findMany({ where: searchCriteria });
         res.json(users);
     }
     catch (error) {
@@ -156,6 +168,7 @@ const searchUsers = (req, res, next) => __awaiter(void 0, void 0, void 0, functi
     }
 });
 exports.searchUsers = searchUsers;
+// Search by user ID
 const searchUserById = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
@@ -171,3 +184,43 @@ const searchUserById = (req, res, next) => __awaiter(void 0, void 0, void 0, fun
     }
 });
 exports.searchUserById = searchUserById;
+// Get all users
+const getUsers = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const users = yield prisma_1.prisma.user.findMany();
+        res.status(200).json(users);
+    }
+    catch (error) {
+        console.log(error);
+        res.status(404).json({ message: "No users found" });
+    }
+});
+exports.getUsers = getUsers;
+// Update user profile
+const updateProfile = (req, res, next) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { userId } = req.params;
+        const _a = req.body, { password } = _a, profileDetails = __rest(_a, ["password"]);
+        // Check if user exists
+        const user = yield prisma_1.prisma.user.findUnique({
+            where: { id: String(userId) },
+        });
+        if (!user) {
+            return res.status(404).json({ message: "User not found" });
+        }
+        // Hash the password if it needs to be updated
+        if (password) {
+            profileDetails.password = (0, bcrypt_1.hashSync)(password, 10);
+        }
+        // Update the user profile
+        const updatedUser = yield prisma_1.prisma.user.update({
+            where: { id: String(userId) },
+            data: profileDetails,
+        });
+        res.json(updatedUser);
+    }
+    catch (err) {
+        next(err);
+    }
+});
+exports.updateProfile = updateProfile;

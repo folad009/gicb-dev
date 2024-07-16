@@ -9,22 +9,23 @@ datasource db {
 
 model User {
   id                   String           @id @default(uuid())
-  first_name           String
-  last_name            String
+  firstName           String
+  lastName            String
   email                String           @unique
   password             String
-  business_name        String           @unique
-  business_category    BusinessCategory
-  business_description String
-  business_address     String
-  profile_picture      String
-  website_url          String
-  social_media_handle  String
-  contact_number       String
-  cac_certificate      String
+  businessName        String?           @unique
+  businessCategory    BusinessCategory?
+  businessDescription String?
+  businessAddress     String?
+  profilePicture      String?
+  websiteUrl          String?
+  socialMediaHandle  String?
+  contactNumber       String
+  cacCertificate      String?
   createdAt            DateTime         @default(now())
   updatedAt            DateTime         @default(now())
-  business_type        BusinessType
+  businessType        BusinessType?
+  businessPictures             String[]
 
   @@map("users")
 }
